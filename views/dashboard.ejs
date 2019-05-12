@@ -11,6 +11,22 @@ This is information about your messages! <br><br>
 This is information about your settings!
 <br><br>
 
+<h2>Journal</h2>
+<p id="content">
+        <% for (let i = 0; i < content.length; i++) { %>
+            <strong>Entry <%=i+1%>:</strong> <%=content[i]%>
+            <br>
+    <%}%>
+    %></p>
+<br><br>
+
+<h2>Submit a Journal Entry</h2>
+<form action="/journal" method="POST">
+    <input type="text" name="newjournalentry">
+    <input type="submit" value="Submit">
+</form>
+<br><br>
+
 <a href="/logout"> Logout</a>
 
 </body>

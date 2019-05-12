@@ -57,13 +57,6 @@ app.use(sessions({
   activeDuration: 5 * 60 * 1000,
 }));
 
-// create database Sessions; Run first in mysql
-// const connection = mysql.createConnection({
-	// host: 'localhost',
-	// user: 'root',
-	// database: 'Sessions'
-// });
-
 // From https://medium.com/dailyjs/how-to-prevent-your-node-js-process-from-crashing-5d40247b8ab2
 // For taking care of unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
@@ -73,7 +66,8 @@ process.on('unhandledRejection', (reason, promise) => {
 async function a() {
 	const connection = await mysql.createConnection({
 		host: 'localhost',
-		user: 'root',
+		user: 'appuser',
+		password: 'This is for Quiz 1',
 		database: 'Sessions'});
 	
 	await connection.execute('DROP TABLE IF EXISTS Users');
@@ -84,15 +78,16 @@ async function a() {
 			'password VARCHAR(255) NOT NULL,'+
 			'PRIMARY KEY (user_id));');
 	await connection.execute('CREATE TABLE IF NOT EXISTS Journal' +
-		'(journal_id INT NOT NULL,' +
-		'content VARCHAR(255) NOT NULL,' +
-		'users_user_id INT NOT NULL,' +
+		'(journal_id INT AUTO_INCREMENT,' +
+		'users_username VARCHAR(255) NOT NULL,' +
+		'content VARCHAR(1000) NOT NULL,' +
 		'PRIMARY KEY (journal_id));');
 
 	for (let i = 0; i < authorizedUsers.length; i++) {
-	await connection.execute('INSERT INTO Users (username,password) VALUES (?,?)',
-	[authorizedUsers[i][0], authorizedUsers[i][1]]);
-}
+		await connection.execute('INSERT INTO Users (username,password) VALUES (?,?)',
+		[authorizedUsers[i][0], authorizedUsers[i][1]]);
+		await connection.execute('insert into Journal (users_username, content) values (?,?)',[authorizedUsers[i][0], 'My first entry']);
+	}
 } 
 a();
 
@@ -122,8 +117,27 @@ app.get('/dashboard', function(req, res){
 	
 	// Is this user logged in? Then show the dashboard
 	if(req.session.username)
-	{
-		res.render('dashboard', {username: req.session.username});
+	{	
+		async function a() {
+			var userName = req.session.username;
+
+			const connection = await mysql.createConnection({
+				host: 'localhost',
+				user: 'appuser',
+				password: 'This is for Quiz 1',
+				database: 'Sessions'});
+			
+			var [row, fields] = await connection.execute('select content from Journal where users_username = ?',[userName]);
+			
+			
+			var journalContent = [];
+			for (let i = 0; i < row.length; i++) {
+				journalContent[i] = row[i]['content'];
+			}
+
+			res.render('dashboard', {username: req.session.username, content: journalContent});
+		}
+		a();
 	}
 	//Not logged in! Redirect to the mainpage
 	else
@@ -132,6 +146,26 @@ app.get('/dashboard', function(req, res){
 	}
 
 });
+
+app.post('/journal', function(req, res){
+
+	async function a() {
+		var userName = req.session.username;
+		var journalEntry = req.body.newjournalentry;
+
+		const connection = await mysql.createConnection({
+			host: 'localhost',
+			user: 'appuser',
+			password: 'This is for Quiz 1',
+			database: 'Sessions'});
+
+		await connection.execute('insert into Journal (users_username, content) values (?,?)', [userName, journalEntry]);
+
+		res.redirect('/dashboard')
+	}
+	a();
+});
+
 
 // The login script
 // @param req - the request
@@ -144,50 +178,31 @@ app.post('/login', function(req, res){
 	
 	// The correct password
 	var correctPass = undefined;
-	
-	// Is this a valid user?
-	// for(let index = 0; index < authorizedUsers.length; index++)	
-	// {
-		
-	// 	// A valid user?
-	// 	if(authorizedUsers[index][0] === userName)
-	// 	{
-	// 		// The user is found! Grab the password!
-	// 		correctPass = authorizedUsers[index][1];
-	// 		console.log("Got it!");
-	// 		break;
-	// 	}
-	// }
-
-	// connection.execute('select * from Users where username=?',
-	// [userName],
-	// function(err, results, fields) {
-	// 	// console.log(err);
-	// 	// console.log(results[0]['username']);
-
-	// 	if(results[0]['username'] === userName) {
-	// 		correctPass = results[0]['username'];
-	// 		console.log("Got it!");
-
-	// 	}
-	// 	else {
-	// 		res.send("Wrong!");
-	// 	}
-		
-	// });
 
 	async function a() {
 		const connection = await mysql.createConnection({
 			host: 'localhost',
-			user: 'root',
+			user: 'appuser',
+			password: 'This is for Quiz 1',
 			database: 'Sessions'});
 		var [row, fields] = await connection.execute('select * from Users where username=?', [userName]);
-		if (row.username === undefined) {
+
+		// Check if username exists
+		if (row.length === 0) {
 			res.send("Wrong!")
 		}
+		// Check querired username against submitted
 		else if(row[0]['username'] === userName) {
-			correctPass = row[0]['username'];
-			console.log("Got it!");
+			correctPass = row[0]['password'];
+			if(correctPass && correctPass === password) {
+				req.session.username = userName;
+
+				res.redirect('/dashboard');
+			}
+			// Password Wrong
+			else {
+				res.send("Wrong!");
+			}
 		}
 		else {
 			res.send("Wrong!");
@@ -195,20 +210,7 @@ app.post('/login', function(req, res){
 	}
 	a();
 	
-	// Check if the username was found and the password is correct
-	if(correctPass && correctPass === password)
-	{
-		// Set the session
-		req.session.username = userName;
-
-		res.redirect('/dashboard');
-	}
-	else
-	{
-		//res.send("Wrong!");
-	}
 });
-
 
 // The logout function
 // @param req - the request
